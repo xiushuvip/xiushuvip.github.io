@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>交互式观月助手</title>
+    <style>
+        /* --- 基础样式与星空背景 --- */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #000;
+            color: #e0e0e0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 10px;
+            box-sizing: border-box;
+            overflow-x: hidden;
+            text-align: center;
+            user-select: none;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                radial-gradient(2px 2px at 20% 30%, white, transparent),
+                radial-gradient(2px 2px at 60% 70%, white, transparent),
+                radial-gradient(1px 1px at 50% 50%, white, transparent),
+                radial-gradient(1px 1px at 80% 10%, white, transparent),
+                radial-gradient(2px 2px at 90% 60%, white, transparent);
+            background-size: 300px 300px;
+            animation: twinkle 10s infinite;
+            opacity: 0.8;
+            z-index: -1;
+        }
+
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.8; }
+            50% { opacity: 0.3; }
+        }
+
+        /* --- 主卡片容器 --- */
+        .container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 15px 20px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            max-width: 500px;
+            width: 100%;
+            z-index: 1;
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 1.5em;
+            color: #ffffff;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        /* --- 3D 月亮容器 --- */
+        .moon-3d-container {
+            width: 220px;
+            height: 220px;
+            margin: 10px auto;
+            perspective: 1000px;
+            cursor: grab;
+            position: relative;
+        }
+
+        .moon-3d-container:active {
+            cursor: grabbing;
+        }
+
+        #moon-svg {
+            width: 100%;
+            height: 100%;
+            transform-style: preserve-3d;
+            transition: transform 0.1s ease-out;
+            filter: drop-shadow(0 0 30px rgba(255, 255, 200, 0.8))
+                    drop-shadow(0 0 60px rgba(255, 255, 200, 0.4))
+                    drop-shadow(-8px -8px 15px rgba(0, 0, 0, 0.8));
+            animation: moonGlow 4s ease-in-out infinite alternate;
+        }
+
+        @keyframes moonGlow {
+            0% { 
+                filter: drop-shadow(0 0 30px rgba(255, 255, 200, 0.8))
+                       drop-shadow(0 0 60px rgba(255, 255, 200, 0.4))
+                       drop-shadow(-8px -8px 15px rgba(0, 0, 0, 0.8));
+            }
+            100% { 
+                filter: drop-shadow(0 0 40px rgba(255, 255, 200, 1))
+                       drop-shadow(0 0 80px rgba(255, 255, 200, 0.6))
+                       drop-shadow(-8px -8px 20px rgba(0, 0, 0, 0.9));
+            }
+        }
+
+        /* --- 信息显示区域 --- */
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            font-size: 0.85em;
+            text-align: left;
+            margin-top: 10px;
+        }
+
+        .info-grid p {
+            margin: 3px 0;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 6px;
+            border-radius: 6px;
+        }
+
+        .info-grid p strong {
+            color: #a5d8ff;
+            display: block;
+            margin-bottom: 2px;
+            font-size: 0.9em;
+        }
+
+        /* --- 状态消息样式 --- */
+        #status-message {
+            color: #f0ad4e;
+            font-style: italic;
+            min-height: 15px;
+            margin-top: 8px;
+            font-size: 0.85em;
+        }
+        .error { color: #e57373; font-weight: bold; }
+
+        /* --- 语言选择器优化 --- */
+        .language-selector {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            width: 35px;
+            height: 35px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+
+        .language-selector:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.1);
+        }
+
+        .language-dropdown {
+            position: fixed;
+            top: 60px;
+            right: 15px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 8px 0;
+            display: none;
+            z-index: 100;
+            min-width: 140px;
+            backdrop-filter: blur(10px);
+        }
+
+        .language-dropdown.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .language-option {
+            padding: 8px 12px;
+            cursor: pointer;
+            text-align: left;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+        }
+
+        .language-option:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .language-flag {
+            margin-right: 8px;
+            font-size: 16px;
+        }
+
+        .language-name {
+            flex: 1;
+        }
+
+        .language-code {
+            font-size: 11px;
+            color: #aaa;
+        }
+
+        /* --- 月亮光晕效果 --- */
+        .moon-glow {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 260px;
+            height: 260px;
+            background: radial-gradient(circle, 
+                rgba(255, 255, 200, 0.1) 0%, 
+                rgba(255, 255, 200, 0.05) 30%, 
+                transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+            animation: glowPulse 3s ease-in-out infinite;
+        }
+
+        @keyframes glowPulse {
+            0%, 100% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); }
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+        }
+
+        /* --- 星星闪烁效果 --- */
+        .star {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            animation: twinkleStar 2s infinite;
+        }
+
+        @keyframes twinkleStar {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1 id="app-title">🌙 交互式观月助手</h1>
+        
+        <div class="moon-3d-container" id="moon-container">
+            <div class="moon-glow"></div>
+            <div id="moon-svg-container"></div>
+        </div>
+
+        <div class="info-grid">
+            <p><strong id="phase-name-label">月相名称</strong><span id="phase-name">计算中...</span></p>
+            <p><strong id="illumination-label">被照亮比例</strong><span id="illumination">0%</span></p>
+            <p><strong id="location-label">📍 位置</strong><span id="location">获取中...</span></p>
+            <p><strong id="current-time-label">🕐 时间</strong><span id="current-time">--</span></p>
+            <p><strong id="moonrise-label">🌅 月出时间</strong><span id="moonrise">--:--</span></p>
+            <p><strong id="moonset-label">🌇 月落时间</strong><span id="moonset">--:--</span></p>
+            <p><strong id="tomorrow-moonrise-label">🌅 明日月出时间</strong><span id="tomorrow-moonrise">--:--</span></p>
+            <p><strong id="tomorrow-moonset-label">🌇 明日月落时间</strong><span id="tomorrow-moonset">--:--</span></p>
+            <p><strong id="sky-position-label">🌌 天空位置</strong><span id="sky-position">--</span></p>
+        </div>
+
+        <p id="status-message">正在获取您的位置...</p>
+    </div>
+
+    <!-- 语言选择器 -->
+    <div class="language-selector" id="language-selector">🌐</div>
+    <div class="language-dropdown" id="language-dropdown">
+        <div class="language-option" data-lang="zh-CN">
+            <span class="language-flag">🇨🇳</span>
+            <span class="language-name">中文</span>
+            <span class="language-code">zh-CN</span>
+        </div>
+        <div class="language-option" data-lang="en">
+            <span class="language-flag">🇺🇸</span>
+            <span class="language-name">English</span>
+            <span class="language-code">en</span>
+        </div>
+        <div class="language-option" data-lang="ja">
+            <span class="language-flag">🇯🇵</span>
+            <span class="language-name">日本語</span>
+            <span class="language-code">ja</span>
+        </div>
+        <div class="language-option" data-lang="es">
+            <span class="language-flag">🇪🇸</span>
+            <span class="language-name">Español</span>
+            <span class="language-code">es</span>
+        </div>
+        <div class="language-option" data-lang="fr">
+            <span class="language-flag">🇫🇷</span>
+            <span class="language-name">Français</span>
+            <span class="language-code">fr</span>
+        </div>
+    </div>
+
+    <script>
+        // --- 多语言支持 ---
+        const translations = {
+            'zh-CN': {
+                title: '🌙 交互式观月助手',
+                phaseName: '月相名称',
+                illumination: '被照亮比例',
+                location: '📍 位置',
+                currentTime: '🕐 时间',
+                moonrise: '🌅 月出时间',
+                moonset: '🌇 月落时间',
+                tomorrowMoonrise: '🌅 明日月出时间',
+                tomorrowMoonset: '🌇 明日月落时间',
+                skyPosition: '🌌 天空位置',
+                gettingLocation: '正在获取您的位置...',
+                locationError: '无法获取您的位置，请检查浏览器权限设置。',
+                browserNotSupported: '您的浏览器不支持地理位置功能。',
+                calculating: '计算中...',
+                noRise: '今日不升起',
+                noSet: '今日不落下',
+                north: '北',
+                northeast: '东北',
+                east: '东',
+                southeast: '东南',
+                south: '南',
+                southwest: '西南',
+                west: '西',
+                northwest: '西北',
+                high: '高空',
+                medium: '中空',
+                low: '低空',
+                belowHorizon: '地平线下',
+                phases: {
+                    new: '🌑 新月',
+                    waxingCrescent: '🌒 蛾眉月',
+                    firstQuarter: '🌓 上弦月',
+                    waxingGibbous: '🌔 盈凸月',
+                    full: '🌕 满月',
+                    waningGibbous: '🌖 亏凸月',
+                    lastQuarter: '🌗 下弦月',
+                    waningCrescent: '🌘 残月'
+                }
+            },
+            'en': {
+                title: '🌙 Interactive Moon Observer',
+                phaseName: 'Moon Phase',
+                illumination: 'Illumination',
+                location: '📍 Location',
+                currentTime: '🕐 Time',
+                moonrise: '🌅 Moonrise',
+                moonset: '🌇 Moonset',
+                tomorrowMoonrise: '🌅 Tomorrow Moonrise',
+                tomorrowMoonset: '🌇 Tomorrow Moonset',
+                skyPosition: '🌌 Sky Position',
+                gettingLocation: 'Getting your location...',
+                locationError: 'Unable to get your location, please check browser permissions.',
+                browserNotSupported: 'Your browser does not support geolocation.',
+                calculating: 'Calculating...',
+                noRise: 'No rise today',
+                noSet: 'No set today',
+                north: 'North',
+                northeast: 'Northeast',
+                east: 'East',
+                southeast: 'Southeast',
+                south: 'South',
+                southwest: 'Southwest',
+                west: 'West',
+                northwest: 'Northwest',
+                high: 'High',
+                medium: 'Medium',
+                low: 'Low',
+                belowHorizon: 'Below horizon',
+                phases: {
+                    new: '🌑 New Moon',
+                    waxingCrescent: '🌒 Waxing Crescent',
+                    firstQuarter: '🌓 First Quarter',
+                    waxingGibbous: '🌔 Waxing Gibbous',
+                    full: '🌕 Full Moon',
+                    waningGibbous: '🌖 Waning Gibbous',
+                    lastQuarter: '🌗 Last Quarter',
+                    waningCrescent: '🌘 Waning Crescent'
+                }
+            },
+            'ja': {
+                title: '🌙 インタラクティブ月観測アシスタント',
+                phaseName: '月の満ち欠け',
+                illumination: '照明率',
+                location: '📍 位置',
+                currentTime: '🕐 時間',
+                moonrise: '🌅 月の出',
+                moonset: '🌇 月の入り',
+                tomorrowMoonrise: '🌅 明日の月の出',
+                tomorrowMoonset: '🌇 明日の月の入り',
+                skyPosition: '🌌 空の位置',
+                gettingLocation: '位置情報を取得中...',
+                locationError: '位置情報を取得できません。ブラウザの権限設定を確認してください。',
+                browserNotSupported: 'お使いのブラウザは地理位置情報機能をサポートしていません。',
+                calculating: '計算中...',
+                noRise: '今日は月の出なし',
+                noSet: '今日は月の入りなし',
+                north: '北',
+                northeast: '北東',
+                east: '東',
+                southeast: '南東',
+                south: '南',
+                southwest: '南西',
+                west: '西',
+                northwest: '北西',
+                high: '高空',
+                medium: '中空',
+                low: '低空',
+                belowHorizon: '地平線下',
+                phases: {
+                    new: '🌑 新月',
+                    waxingCrescent: '🌒 三日月',
+                    firstQuarter: '🌓 上弦の月',
+                    waxingGibbous: '🌔 十三夜月',
+                    full: '🌕 満月',
+                    waningGibbous: '🌖 十六夜月',
+                    lastQuarter: '🌗 下弦の月',
+                    waningCrescent: '🌘 有明の月'
+                }
+            },
+            'es': {
+                title: '🌙 Asistente Interactivo de Observación Lunar',
+                phaseName: 'Fase Lunar',
+                illumination: 'Iluminación',
+                location: '📍 Ubicación',
+                currentTime: '🕐 Hora',
+                moonrise: '🌅 Salida de la Luna',
+                moonset: '🌇 Puesta de la Luna',
+                tomorrowMoonrise: '🌅 Salida de Luna Mañana',
+                tomorrowMoonset: '🌇 Puesta de Luna Mañana',
+                skyPosition: '🌌 Posición en el Cielo',
+                gettingLocation: 'Obteniendo tu ubicación...',
+                locationError: 'No se puede obtener tu ubicación, verifica los permisos del navegador.',
+                browserNotSupported: 'Tu navegador no soporta geolocalización.',
+                calculating: 'Calculando...',
+                noRise: 'No sale hoy',
+                noSet: 'No se pone hoy',
+                north: 'Norte',
+                northeast: 'Noreste',
+                east: 'Este',
+                southeast: 'Sureste',
+                south: 'Sur',
+                southwest: 'Suroeste',
+                west: 'Oeste',
+                northwest: 'Noroeste',
+                high: 'Alto',
+                medium: 'Medio',
+                low: 'Bajo',
+                belowHorizon: 'Bajo el horizonte',
+                phases: {
+                    new: '🌑 Luna Nueva',
+                    waxingCrescent: '🌒 Luna Creciente',
+                    firstQuarter: '🌓 Cuarto Creciente',
+                    waxingGibbous: '🌔 Luna Gibosa Creciente',
+                    full: '🌕 Luna Llena',
+                    waningGibbous: '🌖 Luna Gibosa Menguante',
+                    lastQuarter: '🌗 Cuarto Menguante',
+                    waningCrescent: '🌘 Luna Menguante'
+                }
+            },
+            'fr': {
+                title: '🌙 Assistant d\'Observation Lunaire Interactif',
+                phaseName: 'Phase Lunaire',
+                illumination: 'Illumination',
+                location: '📍 Emplacement',
+                currentTime: '🕐 Heure',
+                moonrise: '🌅 Lever de la Lune',
+                moonset: '🌇 Coucher de la Lune',
+                tomorrowMoonrise: '🌅 Lever de Lune Demain',
+                tomorrowMoonset: '🌇 Coucher de Lune Demain',
+                skyPosition: '🌌 Position dans le Ciel',
+                gettingLocation: 'Obtention de votre position...',
+                locationError: 'Impossible d\'obtenir votre position, vérifiez les autorisations du navigateur.',
+                browserNotSupported: 'Votre navigateur ne supporte pas la géolocalisation.',
+                calculating: 'Calcul en cours...',
+                noRise: 'Pas de lever aujourd\'hui',
+                noSet: 'Pas de coucher aujourd\'hui',
+                north: 'Nord',
+                northeast: 'Nord-Est',
+                east: 'Est',
+                southeast: 'Sud-Est',
+                south: 'Sud',
+                southwest: 'Sud-Ouest',
+                west: 'Ouest',
+                northwest: 'Nord-Ouest',
+                high: 'Élevé',
+                medium: 'Moyen',
+                low: 'Bas',
+                belowHorizon: 'Sous l\'horizon',
+                phases: {
+                    new: '🌑 Nouvelle Lune',
+                    waxingCrescent: '🌒 Premier Croissant',
+                    firstQuarter: '🌓 Premier Quartier',
+                    waxingGibbous: '🌔 Lune Gibbeuse Croissante',
+                    full: '🌕 Pleine Lune',
+                    waningGibbous: '🌖 Lune Gibbeuse Décroissante',
+                    lastQuarter: '🌗 Dernier Quartier',
+                    waningCrescent: '🌘 Dernier Croissant'
+                }
+            }
+        };
+
+        // 当前语言
+        let currentLang = 'zh-CN';
+
+        // --- DOM 元素引用 ---
+        const moonSvgContainer = document.getElementById('moon-svg-container');
+        const moonContainer = document.getElementById('moon-container');
+        const phaseNameEl = document.getElementById('phase-name');
+        const illuminationEl = document.getElementById('illumination');
+        const locationEl = document.getElementById('location');
+        const currentTimeEl = document.getElementById('current-time');
+        const moonriseEl = document.getElementById('moonrise');
+        const moonsetEl = document.getElementById('moonset');
+        const tomorrowMoonriseEl = document.getElementById('tomorrow-moonrise');
+        const tomorrowMoonsetEl = document.getElementById('tomorrow-moonset');
+        const skyPositionEl = document.getElementById('sky-position');
+        const statusMessageEl = document.getElementById('status-message');
+        
+        // 语言切换相关元素
+        const languageSelector = document.getElementById('language-selector');
+        const languageDropdown = document.getElementById('language-dropdown');
+        const languageOptions = document.querySelectorAll('.language-option');
+
+        let userCoords = null;
+        let updateInterval = null;
+
+        // --- 交互相关变量 ---
+        let isDragging = false, currentRotationY = -25, currentRotationX = 10;
+        let startX = 0, startY = 0, velocity = { x: 0, y: 0 };
+        let lastMouseX = 0, lastMouseY = 0, animationFrameId = null;
+        let startSound, endSound;
+
+        // 初始化音频
+        function initAudio() {
+            try {
+                startSound = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmFgU7k9n1unEiBC13yO/eizEIHWq+8+OWT');
+                endSound = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmFgU7k9n1unEiBC13yO/eizEIHWq+8+OWT');
+                startSound.volume = 0.3; 
+                endSound.volume = 0.3;
+            } catch (e) {
+                console.log("音频初始化失败:", e);
+            }
+        }
+
+        // --- 天文计算辅助函数 ---
+        const toRad = (deg) => deg * (Math.PI / 180);
+        const toDeg = (rad) => rad * (180 / Math.PI);
+
+        // --- 核心月相计算函数 ---
+        function getMoonPhase(date) {
+            const knownNewMoon = new Date(Date.UTC(2000, 0, 6, 18, 14));
+            const synodicMonth = 29.530588853;
+            const timeDiff = date - knownNewMoon;
+            const daysDiff = timeDiff / (1000 * 60 * 60 * 24);
+            let moonAge = (daysDiff % synodicMonth + synodicMonth) % synodicMonth;
+            let illumination = 0.5 * (1 - Math.cos(2 * Math.PI * (moonAge / synodicMonth)));
+            return { age: moonAge, illumination: illumination, phase: moonAge / synodicMonth };
+        }
+
+        function getPhaseName(age) {
+            const t = translations[currentLang];
+            if (age < 1.84) return t.phases.new; 
+            if (age < 5.53) return t.phases.waxingCrescent; 
+            if (age < 9.22) return t.phases.firstQuarter;
+            if (age < 12.91) return t.phases.waxingGibbous; 
+            if (age < 16.61) return t.phases.full; 
+            if (age < 20.30) return t.phases.waningGibbous;
+            if (age < 23.99) return t.phases.lastQuarter; 
+            if (age < 27.68) return t.phases.waningCrescent; 
+            return t.phases.new;
+        }
+
+        // --- 月亮位置计算 ---
+        function getMoonPosition(date, lat, lon) {
+            const T = (date - new Date(Date.UTC(2000, 0, 1, 12, 0, 0))) / (365.25 * 86400000.0);
+            
+            const L_prime = toRad(218.3164477 + 481267.88123421 * T - 0.0015786 * T * T + T * T * T / 538841 - T * T * T * T / 65194000);
+            const M_prime = toRad(134.9633964 + 477198.8675055 * T + 0.0087414 * T * T + T * T * T / 69699 - T * T * T * T / 14712000);
+            const D = toRad(297.8501921 + 445267.1113532 * T - 0.0016300 * T * T + T * T * T / 545868 - T * T * T * T / 113065000);
+            const M = toRad(357.5291092 + 35999.0502909 * T - 0.0001536 * T * T + T * T * T / 24490000);
+            
+            let E = 1 - 0.002516 * T - 0.0000074 * T * T;
+            let lambda = L_prime + 22640 * Math.sin(M_prime) - 4586 * Math.sin(M_prime - 2*D) + 2370 * Math.sin(2*D) + 769 * Math.sin(2*M_prime) - 668 * Math.sin(M) - 412 * Math.sin(2*M_prime - 2*D) - 212 * Math.sin(2*M_prime + 2*D) - 206 * Math.sin(M_prime + M - 2*D) + 192 * Math.sin(M_prime - M) - 165 * Math.sin(D) + 148 * Math.sin(M_prime - M - 2*D) - 125 * Math.sin(D) - 110 * Math.sin(M_prime + M) - 55 * Math.sin(2*D - 2*M);
+            let beta = 18520 * Math.sin(D + M_prime - 2*D) - 5260 * Math.sin(M_prime - 2*D) + 4400 * Math.sin(2*D) - 1600 * Math.sin(M_prime) + 1200 * Math.sin(M) - 600 * Math.sin(2*M_prime - 2*D);
+            
+            lambda = toRad(lambda);
+            beta = toRad(beta);
+            
+            const epsilon = toRad(23.4392911 - 0.0130042 * T - 0.00000016 * T * T + 0.000000504 * T * T * T);
+            
+            const ra = Math.atan2(Math.cos(epsilon) * Math.sin(lambda) - Math.sin(epsilon) * Math.tan(beta), Math.cos(lambda));
+            const dec = Math.asin(Math.sin(epsilon) * Math.sin(lambda) * Math.cos(beta) + Math.cos(epsilon) * Math.sin(beta));
+
+            const lst = (18.697374558 + 24.06570982441908 * T) + (lon / 15.0);
+            const ha = toRad((lst * 15) - toDeg(ra));
+            
+            const alt = Math.asin(Math.sin(dec) * Math.sin(toRad(lat)) + Math.cos(dec) * Math.cos(toRad(lat)) * Math.cos(ha));
+            const az = Math.atan2(-Math.sin(ha), Math.tan(dec) * Math.cos(toRad(lat)) - Math.sin(toRad(lat)) * Math.cos(ha));
+            
+            return {
+                altitude: toDeg(alt),
+                azimuth: (toDeg(az) + 360) % 360
+            };
+        }
+        
+        // --- 计算月出月落 ---
+        function getMoonRiseSet(date, lat, lon) {
+            let moonrise = null, moonset = null;
+            for (let dayOffset = -1; dayOffset <= 1; dayOffset++) {
+                const checkDate = new Date(date);
+                checkDate.setDate(checkDate.getDate() + dayOffset);
+                checkDate.setHours(0, 0, 0, 0);
+
+                let lastAlt = getMoonPosition(checkDate, lat, lon).altitude;
+                let rising = false, setting = false;
+
+                for (let h = 0; h < 24; h += 0.5) {
+                    const currentTime = new Date(checkDate.getTime() + h * 3600 * 1000);
+                    const currentAlt = getMoonPosition(currentTime, lat, lon).altitude;
+
+                    if (lastAlt < 0 && currentAlt >= 0) {
+                        if (!moonrise || currentTime < moonrise) moonrise = currentTime;
+                    }
+                    if (lastAlt >= 0 && currentAlt < 0) {
+                        if (!moonset || currentTime < moonset) moonset = currentTime;
+                    }
+                    lastAlt = currentAlt;
+                }
+            }
+            return { moonrise, moonset };
+        }
+
+        // --- 获取天空位置描述 ---
+        function getSkyPosition(altitude, azimuth) {
+            const t = translations[currentLang];
+            
+            // 如果月亮在地平线下
+            if (altitude < 0) {
+                return t.belowHorizon;
+            }
+            
+            // 确定高度描述
+            let heightDesc;
+            if (altitude >= 60) {
+                heightDesc = t.high;
+            } else if (altitude >= 30) {
+                heightDesc = t.medium;
+            } else {
+                heightDesc = t.low;
+            }
+            
+            // 确定方位描述
+            let directionDesc;
+            if (azimuth >= 337.5 || azimuth < 22.5) {
+                directionDesc = t.north;
+            } else if (azimuth >= 22.5 && azimuth < 67.5) {
+                directionDesc = t.northeast;
+            } else if (azimuth >= 67.5 && azimuth < 112.5) {
+                directionDesc = t.east;
+            } else if (azimuth >= 112.5 && azimuth < 157.5) {
+                directionDesc = t.southeast;
+            } else if (azimuth >= 157.5 && azimuth < 202.5) {
+                directionDesc = t.south;
+            } else if (azimuth >= 202.5 && azimuth < 247.5) {
+                directionDesc = t.southwest;
+            } else if (azimuth >= 247.5 && azimuth < 292.5) {
+                directionDesc = t.west;
+            } else if (azimuth >= 292.5 && azimuth < 337.5) {
+                directionDesc = t.northwest;
+            }
+            
+            return `${directionDesc}${heightDesc}`;
+        }
+
+        // --- 增强的月相SVG绘制 ---
+        function drawMoonPhase(illumination) {
+            const size = 220; // 缩小尺寸
+            const radius = size / 2;
+            const isWaxing = illumination > 0.5;
+            const shadowRadiusX = radius * Math.abs(2 * illumination - 1);
+            const shadowTranslateX = isWaxing ? radius - shadowRadiusX : -(radius - shadowRadiusX);
+            
+            // 更复杂的月亮表面纹理
+            const craters = [
+                { x: 0.7, y: 0.5, r: 0.08, opacity: 0.6 },
+                { x: 1.2, y: 1.3, r: 0.12, opacity: 0.5 },
+                { x: 0.5, y: 1.5, r: 0.06, opacity: 0.4 },
+                { x: 0.8, y: 0.6, r: 0.07, opacity: 0.7 },
+                { x: 0.3, y: 1.2, r: 0.09, opacity: 0.6 },
+                { x: 1.1, y: 0.8, r: 0.05, opacity: 0.5 },
+                { x: 0.6, y: 0.9, r: 0.08, opacity: 0.4 },
+                { x: 0.9, y: 1.1, r: 0.06, opacity: 0.6 }
+            ];
+            
+            let craterElements = '';
+            craters.forEach(crater => {
+                craterElements += `<circle cx="${radius * crater.x}" cy="${radius * crater.y}" r="${radius * crater.r}" fill="#2a2a2a" opacity="${crater.opacity}"/>`;
+            });
+            
+            // 更明亮的高光效果
+            const highlights = [
+                { x: 0.65, y: 0.45, r: 0.1, opacity: 0.7 },
+                { x: 1.15, y: 1.25, r: 0.15, opacity: 0.6 },
+                { x: 0.45, y: 1.45, r: 0.08, opacity: 0.5 }
+            ];
+            
+            let highlightElements = '';
+            highlights.forEach(highlight => {
+                highlightElements += `<circle cx="${radius * highlight.x}" cy="${radius * highlight.y}" r="${radius * highlight.r}" fill="#e8e4d6" opacity="${highlight.opacity}" mask="url(#moon-mask)"/>`;
+            });
+            
+            const svg = `
+                <svg id="moon-svg" width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <mask id="moon-mask">
+                            <rect width="100%" height="100%" fill="white"/>
+                            <ellipse cx="${radius + shadowTranslateX}" cy="${radius}" rx="${shadowRadiusX}" ry="${radius}" fill="black"/>
+                        </mask>
+                        <radialGradient id="moonGradient">
+                            <stop offset="0%" style="stop-color:#f8f4e6;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#e8d4a0;stop-opacity:1" />
+                        </radialGradient>
+                        <radialGradient id="shadowGradient">
+                            <stop offset="0%" style="stop-color:#3a3a3a;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#1a1a1a;stop-opacity:1" />
+                        </radialGradient>
+                    </defs>
+                    <!-- 月亮基础 -->
+                    <circle cx="${radius}" cy="${radius}" r="${radius - 3}" fill="url(#shadowGradient)"/>
+                    <circle cx="${radius}" cy="${radius}" r="${radius - 3}" fill="url(#moonGradient)" mask="url(#moon-mask)"/>
+                    <!-- 表面细节 -->
+                    ${craterElements}
+                    <!-- 高光效果 -->
+                    ${highlightElements}
+                    <!-- 边缘光晕 -->
+                    <circle cx="${radius}" cy="${radius}" r="${radius - 3}" fill="none" stroke="rgba(255,255,200,0.2)" stroke-width="2" mask="url(#moon-mask)"/>
+                </svg>
+            `;
+            
+            moonSvgContainer.innerHTML = svg; 
+            applyRotation();
+        }
+
+        function applyRotation() { 
+            const moonSvg = document.getElementById('moon-svg'); 
+            if (moonSvg) { 
+                moonSvg.style.transform = `rotateY(${currentRotationY}deg) rotateX(${currentRotationX}deg)`; 
+            } 
+        }
+
+        function inertiaAnimation() { 
+            if (!isDragging) { 
+                currentRotationY += velocity.x; 
+                currentRotationX -= velocity.y; 
+                velocity.x *= 0.95; 
+                velocity.y *= 0.95; 
+                applyRotation(); 
+                if (Math.abs(velocity.x) > 0.01 || Math.abs(velocity.y) > 0.01) { 
+                    animationFrameId = requestAnimationFrame(inertiaAnimation); 
+                } 
+            } 
+        }
+
+        function handleStart(e) { 
+            isDragging = true; 
+            startX = (e.clientX || e.touches[0].clientX); 
+            startY = (e.clientY || e.touches[0].clientY); 
+            lastMouseX = startX; 
+            lastMouseY = startY; 
+            velocity = { x: 0, y: 0 }; 
+            if (animationFrameId) cancelAnimationFrame(animationFrameId); 
+            if (startSound) {
+                startSound.currentTime = 0; 
+                startSound.play().catch(e => console.log("Sound play failed:", e));
+            }
+        }
+
+        function handleMove(e) { 
+            if (!isDragging) return; 
+            e.preventDefault(); 
+            const clientX = e.clientX || e.touches[0].clientX; 
+            const clientY = e.clientY || e.touches[0].clientY; 
+            const deltaX = clientX - lastMouseX; 
+            const deltaY = clientY - lastMouseY; 
+            velocity.x = deltaX * 0.5; 
+            velocity.y = deltaY * 0.5; 
+            currentRotationY += deltaX; 
+            currentRotationX -= deltaY; 
+            applyRotation(); 
+            lastMouseX = clientX; 
+            lastMouseY = clientY; 
+        }
+
+        function handleEnd(e) { 
+            if (!isDragging) return; 
+            isDragging = false; 
+            if (endSound) {
+                endSound.currentTime = 0; 
+                endSound.play().catch(e => console.log("Sound play failed:", e));
+            }
+            inertiaAnimation(); 
+        }
+
+        // --- 更新界面语言 ---
+        function updateLanguage(lang) {
+            currentLang = lang;
+            const t = translations[lang];
+            
+            document.getElementById('app-title').textContent = t.title;
+            document.getElementById('phase-name-label').textContent = t.phaseName;
+            document.getElementById('illumination-label').textContent = t.illumination;
+            document.getElementById('location-label').textContent = t.location;
+            document.getElementById('current-time-label').textContent = t.currentTime;
+            document.getElementById('moonrise-label').textContent = t.moonrise;
+            document.getElementById('moonset-label').textContent = t.moonset;
+            document.getElementById('tomorrow-moonrise-label').textContent = t.tomorrowMoonrise;
+            document.getElementById('tomorrow-moonset-label').textContent = t.tomorrowMoonset;
+            document.getElementById('sky-position-label').textContent = t.skyPosition;
+            
+            // 更新当前显示的内容
+            if (userCoords) {
+                updateDisplay();
+            }
+        }
+
+        // --- 更新所有显示信息 ---
+        function updateDisplay() {
+            if (!userCoords) { 
+                const t = translations[currentLang];
+                statusMessageEl.textContent = t.locationError; 
+                statusMessageEl.classList.add('error'); 
+                return; 
+            }
+            
+            const now = new Date();
+            const t = translations[currentLang];
+            
+            // 使用当前语言的日期时间格式
+            if (currentLang === 'zh-CN') {
+                currentTimeEl.textContent = now.toLocaleString('zh-CN', { 
+                    year: 'numeric', 
+                    month: '2-digit', 
+                    day: '2-digit', 
+                    hour: '2-digit', 
+                    minute: '2-digit', 
+                    second: '2-digit', 
+                    hour12: false 
+                });
+            } else if (currentLang === 'ja') {
+                currentTimeEl.textContent = now.toLocaleString('ja-JP', { 
+                    year: 'numeric', 
+                    month: '2-digit', 
+                    day: '2-digit', 
+                    hour: '2-digit', 
+                    minute: '2-digit', 
+                    second: '2-digit', 
+                    hour12: false 
+                });
+            } else {
+                currentTimeEl.textContent = now.toLocaleString('en-US', { 
+                    year: 'numeric', 
+                    month: '2-digit', 
+                    day: '2-digit', 
+                    hour: '2-digit', 
+                    minute: '2-digit', 
+                    second: '2-digit', 
+                    hour12: false 
+                });
+            }
+            
+            const moonData = getMoonPhase(now);
+            phaseNameEl.textContent = getPhaseName(moonData.age);
+            illuminationEl.textContent = `${(moonData.illumination * 100).toFixed(1)}%`;
+            
+            if (!document.getElementById('moon-svg')) {
+                drawMoonPhase(moonData.illumination);
+            }
+
+            // 更新位置信息
+            const pos = getMoonPosition(now, userCoords.latitude, userCoords.longitude);
+            
+            // 更新天空位置描述
+            skyPositionEl.textContent = getSkyPosition(pos.altitude, pos.azimuth);
+
+            // 计算并显示今日月出月落
+            const { moonrise, moonset } = getMoonRiseSet(now, userCoords.latitude, userCoords.longitude);
+            moonriseEl.textContent = moonrise ? moonrise.toLocaleTimeString(currentLang === 'zh-CN' ? 'zh-CN' : currentLang === 'ja' ? 'ja-JP' : 'en-US', { hour: '2-digit', minute: '2-digit' }) : t.noRise;
+            moonsetEl.textContent = moonset ? moonset.toLocaleTimeString(currentLang === 'zh-CN' ? 'zh-CN' : currentLang === 'ja' ? 'ja-JP' : 'en-US', { hour: '2-digit', minute: '2-digit' }) : t.noSet;
+
+            // 计算并显示明日月出月落
+            const tomorrow = new Date(now);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const { moonrise: tomorrowMoonrise, moonset: tomorrowMoonset } = getMoonRiseSet(tomorrow, userCoords.latitude, userCoords.longitude);
+            tomorrowMoonriseEl.textContent = tomorrowMoonrise ? tomorrowMoonrise.toLocaleTimeString(currentLang === 'zh-CN' ? 'zh-CN' : currentLang === 'ja' ? 'ja-JP' : 'en-US', { hour: '2-digit', minute: '2-digit' }) : t.noRise;
+            tomorrowMoonsetEl.textContent = tomorrowMoonset ? tomorrowMoonset.toLocaleTimeString(currentLang === 'zh-CN' ? 'zh-CN' : currentLang === 'ja' ? 'ja-JP' : 'en-US', { hour: '2-digit', minute: '2-digit' }) : t.noSet;
+
+            statusMessageEl.textContent = ''; 
+            statusMessageEl.classList.remove('error');
+        }
+
+        // --- 获取地理位置 ---
+        function getLocation() {
+            const t = translations[currentLang];
+            
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        userCoords = { 
+                            latitude: position.coords.latitude, 
+                            longitude: position.coords.longitude
+                        };
+                        locationEl.textContent = `${userCoords.latitude.toFixed(2)}°N, ${userCoords.longitude.toFixed(2)}°E`;
+                        
+                        // 启动实时更新
+                        if (updateInterval) clearInterval(updateInterval);
+                        updateInterval = setInterval(updateDisplay, 1000); // 每秒更新一次，确保时间读秒
+                        updateDisplay(); // 立即更新一次
+                    },
+                    (error) => { 
+                        statusMessageEl.textContent = t.locationError; 
+                        statusMessageEl.classList.add('error'); 
+                        locationEl.textContent = "未知"; 
+                    }
+                );
+            } else { 
+                statusMessageEl.textContent = t.browserNotSupported; 
+                statusMessageEl.classList.add('error'); 
+                locationEl.textContent = "不支持"; 
+            }
+        }
+
+        // --- 语言切换功能 ---
+        function setupLanguageSelector() {
+            languageSelector.addEventListener('click', () => {
+                languageDropdown.classList.toggle('show');
+            });
+            
+            document.addEventListener('click', (e) => {
+                if (!languageSelector.contains(e.target) && !languageDropdown.contains(e.target)) {
+                    languageDropdown.classList.remove('show');
+                }
+            });
+            
+            languageOptions.forEach(option => {
+                option.addEventListener('click', () => {
+                    const lang = option.getAttribute('data-lang');
+                    updateLanguage(lang);
+                    languageDropdown.classList.remove('show');
+                    
+                    // 保存语言偏好
+                    localStorage.setItem('moonAppLanguage', lang);
+                });
+            });
+            
+            // 加载保存的语言偏好
+            const savedLang = localStorage.getItem('moonAppLanguage');
+            if (savedLang && translations[savedLang]) {
+                updateLanguage(savedLang);
+            }
+        }
+
+        // --- 添加动态星星效果 ---
+        function createStars() {
+            const container = document.querySelector('.moon-3d-container');
+            for (let i = 0; i < 15; i++) { // 减少星星数量
+                const star = document.createElement('div');
+                star.className = 'star';
+                star.style.width = Math.random() * 2 + 'px'; // 缩小星星
+                star.style.height = star.style.width;
+                star.style.left = Math.random() * 100 + '%';
+                star.style.top = Math.random() * 100 + '%';
+                star.style.animationDelay = Math.random() * 2 + 's';
+                star.style.animationDuration = (Math.random() * 3 + 2) + 's';
+                container.appendChild(star);
+            }
+        }
+
+        // --- 初始化 ---
+        window.onload = () => {
+            initAudio();
+            setupLanguageSelector();
+            createStars();
+            getLocation();
+            
+            // 添加交互事件
+            moonContainer.addEventListener('mousedown', handleStart); 
+            document.addEventListener('mousemove', handleMove); 
+            document.addEventListener('mouseup', handleEnd); 
+            moonContainer.addEventListener('touchstart', handleStart); 
+            document.addEventListener('touchmove', handleMove); 
+            document.addEventListener('touchend', handleEnd);
+        };
+    </script>
+</body>
+</html>
